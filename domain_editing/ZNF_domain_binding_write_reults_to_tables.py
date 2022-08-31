@@ -1,5 +1,15 @@
+# this code =
+# input:
+# sites with amino change and gene symbol
+# genes list (symbol) with compatible acc_number
+# note !! make sure your amino-change is compatible with its gene's acc_number
+# output:
+# will write to csv table for each gene and its statistical result, fingerprints change, and new protein seq after change
+# will also write table of all sites in fingerprints
+
+
 import os
-import pandas
+import pandas as pd
 from Bio import Entrez
 import time
 import re
@@ -90,9 +100,11 @@ if __name__ == "__main__":
     # for writing results
 
     # list of gens with more the 10 editing sites
-    genes = pandas.read_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_geneID.csv")
+    genes = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_geneID.csv")
     # all editing sites
-    sites = pandas.read_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_sites.csv")
+    sites = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_sites.csv")
+    # remove stop loss/gain sites - - nothing to do with binding here
+    sites = sites[~sites['amino_change'].str.contains("*",regex=False)]
     # create EntrezClint for getting proteins seq
     EzC = EntrezClint()
     # array to save number of editing in all 4 DNA binding amino acids
@@ -121,8 +133,12 @@ if __name__ == "__main__":
     domain_expected_rate = []
     domain_rate = []
     aa_change_list = []
+    # for sites in fingerprint table
+    list_sites_in_fingerprints =[]
+    sites_orig_seq =[]
+    sites_new_seq =[]
     for index, gene in genes.iterrows():
-
+        print(gene['gene_name'])
         prot_seq = EzC.get_prot_seq(gene['accession_n'])
         prots_seq.append(prot_seq)
         #take all gene's sites
@@ -153,7 +169,14 @@ if __name__ == "__main__":
                 gene_bind_counter +=1
                 gene_bind_change_list.append(change)
                 fourth_sites_counter_gene += hits_check.which_of_forth(amino_place)
-
+                # save details for sites in fingerprint table
+                list_sites_in_fingerprints.append(site)
+                sites_orig_seq.append(prot_seq)
+                new_seq = list(prot_seq)
+                new_seq[amino_place]=new_amino
+                assert new_seq != prot_seq, change+"\n"+new_seq+"\n"+prot_seq
+                sites_new_seq.append("".join(new_seq))
+                
         in_fingerprint.append(gene_bind_counter)
         in_domain.append(gene_in_domain_counter)
         aa_change_list.append(";".join(gene_bind_change_list))
@@ -190,18 +213,27 @@ if __name__ == "__main__":
     genes['in_domain_count'] = in_domain
     genes['in_domain_expected_rate'] = domain_expected_rate
     genes['in_domain_rate'] = domain_rate
-    genes['change_list'] = aa_change_list
+    genes['in_fingerprints_list'] = aa_change_list
 
-    genes.to_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_genes_result.csv", index=False)
+    dir = "/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/"
+    
+    genes.to_csv((dir + "above_40_genes_result.csv"), index=False)
 
-    # check results for all genes:
-    expected_aminos_rate_total = sites.shape[0]/proteins_len_all
-    binding_aminos_rate_total = total_binds/total_binding_sites
-    expected_aminos_count_total = sites.shape[0]*(total_binding_sites/proteins_len_all)
+    sites_in_fingerprints=pd.DataFrame(list_sites_in_fingerprints)
+    sites_in_fingerprints['old_prot_seq']=sites_orig_seq
+    sites_in_fingerprints['new_prot_seq']=sites_new_seq
 
-    #summerize in domains editing
-    expected_in_domain_rate_total = total_domain_length/proteins_len_all
-    expected_in_domain_count_total = sites.shape[0]*expected_in_domain_rate_total
-    in_domain_rate_total = total_in_domains/sites.shape[0]
+    sites_in_fingerprints.to_csv((dir + "above_40_sites_in_fingerprints_result.csv"), index=False)
+
+    
+    # # check results for all genes:
+    # expected_aminos_rate_total = sites.shape[0]/proteins_len_all
+    # binding_aminos_rate_total = total_binds/total_binding_sites
+    # expected_aminos_count_total = sites.shape[0]*(total_binding_sites/proteins_len_all)
+
+    # #summerize in domains editing
+    # expected_in_domain_rate_total = total_domain_length/proteins_len_all
+    # expected_in_domain_count_total = sites.shape[0]*expected_in_domain_rate_total
+    # in_domain_rate_total = total_in_domains/sites.shape[0]
 
 

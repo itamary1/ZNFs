@@ -1,5 +1,7 @@
 import pandas
-
+# !!!!!!!!!!!! very bad code - you should use another one!!!!!!!!!!!!!
+# 
+# will take list of site and will write the old and the new protein seq for every protein
 if __name__ == "__main__":
     sites = pandas.read_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_sites.csv")
     genes_binding = pandas.read_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_genes_result.csv")

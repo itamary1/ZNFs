@@ -1,5 +1,14 @@
+# this code =
+# input:
+# sites with amino change and gene symbol
+# genes list (symbol) with compatible acc_number
+# note !! make sure your amino-change is compatible with its gene's acc_number
+# output:
+# will print and write to file statistics and detailed properties on the domain/fingerprints changes dou to the amino-changes
+
+
 import os
-import pandas
+import pandas as pd 
 from Bio import Entrez
 import time
 import re
@@ -11,9 +20,11 @@ class EntrezClint:
         Entrez.email = "your.email@domain.tld"
 
     def get_prot_seq(self,accession_n):
+        # get protein id by gene acc
         result = Entrez.esearch(db = 'Nucleotide', term=accession_n)
         record = Entrez.read(result)
         gi = record["IdList"][0]
+        # get rwcord by id
         gene_record = Entrez.efetch(db="Nucleotide", id=gi, retmode="xml")
         xml = Entrez.read(gene_record)
         asStr = str(xml[0])
@@ -22,10 +33,18 @@ class EntrezClint:
         assert prot_seq[0] == '\'' and prot_seq[-1] == '\'', accession_n + " protein seq didnt fully accomplished " + prot_seq
         # Sleep for 0.3 seconds, to keep NCBI servers happy
         time.sleep(0.3)
+        # remove start an end "\" and add stop codon at the end
         return (prot_seq[1:-1] + 'X')
 
 
 class ZnfDomainsHits:
+    # will find and save domain details for the protein seq
+    # will save:
+    # fingerprints aminos location
+    # group for every 4  fingerprints aminos
+    # domains' start/end
+    # domain total length
+    # count domains
     def __init__(self,seq):
         #C2H2 pattern from prosite - regex
         c2h2_pat = "C.{2,4}C.{3}[LIVMFYWC].{8}H.{3,5}H"
@@ -38,8 +57,11 @@ class ZnfDomainsHits:
         # list with groups of 4 positions of aminos that bind dna
         # yes its redundant to have both
         self.four_binding = []
+        #wil save domains' start/end
         self.domains_regions = []
+        # will sum all domain length
         self.domains_span = 0
+        # will count domain
         self.num_domains = 0
         for hit in c2h2_comped.finditer(seq):
             # get hit's sequnce
@@ -61,13 +83,16 @@ class ZnfDomainsHits:
                     self.binding_aminos.add(h_place - 5)
                     self.binding_aminos.add(h_place - 7)
                     self.four_binding.append(tuple([h_place - 7,h_place - 5,h_place - 4,h_place - 1]))
-    # TODO check enricment to certain amino
+
+    # will return true/false if site is in binding amino site
     def is_binding_amino(self, amino_site):
         int(amino_site)
         if amino_site in self.binding_aminos:
             return True
         else:
             return False
+   
+    # will return nparray with 1 in the binding one
     def which_of_forth(self, amino_site):
         #will save in which_of_forth the editing is
         sites = np.zeros([4],'int')
@@ -76,7 +101,8 @@ class ZnfDomainsHits:
                 if int(amino_site) == int(k):
                     sites[i] = 1
         return sites
-
+        
+    # will return true/false if site is in binding domain
     def is_within_domain(self,amino_site):
         for region in self.domains_regions:
             if region[0] <= amino_site <= region[1]:
@@ -88,20 +114,22 @@ class ZnfDomainsHits:
 # todo check recurrent amino replacment?
 if __name__ == "__main__":
     # for writing results
-    with open("/private8/Projects/itamar/ZNF/orshai_editing_sites/ZNF_binding_edit.txt", 'w') as outf:
+    with open("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/ZNF_binding_edit.txt", 'w') as outf:
         # list of gens with more the 10 editing sites
-        genes = pandas.read_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_geneID.csv")
+        genes = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_geneID.csv")
         # all editing sites
-        sites = pandas.read_csv("/private8/Projects/itamar/ZNF/orshai_editing_sites/above_10_sites.csv")
+        sites = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_sites.csv")
+        # remove stop loss/gain sites - - nothing to do with binding here
+        sites = sites[~sites['amino_change'].str.contains("*",regex=False)]
         # create EntrezClint for getting proteins seq
         EzC = EntrezClint()
-        # array to save number of editing in all 4 DNA binding amino acids
+        # array to save number of editing in all 4 DNA binding amino acids - to check enrichment
         total_fourth = np.zeros(4,'int')
-        # save lengteh of all proteins
+        # save lengteh of all proteins - for norelize
         proteins_len_all = 0
         # save editing in  DNA binding amino acids
         total_binds = 0
-        # save number of DNA binding amino acids
+        # save number of DNA binding amino acids - (for normilizeing - how many binding aminos in all the genes)
         total_binding_sites = 0
         # save editing in ZNF domains
         total_in_domains = 0
@@ -110,22 +138,22 @@ if __name__ == "__main__":
         # save list of changing  in ZNF domains - like "L182P"
         total_bind_change_list = []
         # take only none syn sites TODO - remove?
-        sites = sites[sites['mut_type_short'] == 'nonsyn']
+        sites = sites[sites['mut_type_short'] != 'syn']
         df_for_seq_mut_rows = []
+        # check results for every gene
         for index, gene in genes.iterrows():
-
             prot_seq = EzC.get_prot_seq(gene['accession_n'])
             #take all gene's sites
             g_sites = sites[sites['gene_name'] == gene['gene_name']]
             #get set of places with binding-related amino acids:
             # create hits checker
             hits_check = ZnfDomainsHits(prot_seq)
-
             gene_bind_counter = 0
             gene_in_domain_counter = 0
             fourth_sites_counter_gene = np.zeros(4, 'int')
             # list of changing  in ZNF domains in gene
             gene_bind_change_list = []
+            
             # check every editing site for the gene if its on binding-related amino acids
             for index, site in g_sites.iterrows():
                 change = site['amino_change']  # like "L182P"
@@ -134,7 +162,7 @@ if __name__ == "__main__":
                 #update place to -1 becouse orshai counts from 1 not from 0
                 amino_place = int(change[1:-1]) - 1
                 # check matching between orshai and our protein seq
-                assert orig_amino == prot_seq[amino_place] , orig_amino + prot_seq[amino_place]
+                assert orig_amino == prot_seq[amino_place] , "orig: " + orig_amino + "seq :" + prot_seq[amino_place] + '\n' + str(site) + "\n\n" +prot_seq
                 # check if the site fall on special position
                 if hits_check.is_within_domain(amino_place):
                     gene_in_domain_counter +=1
