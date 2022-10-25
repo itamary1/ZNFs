@@ -14,6 +14,7 @@ import subprocess
 DIFF_THRESH=0.2
 pwm_pol_script_path = "/home/alu/twerski/pwm_predict/run_pwm_one_file_pol.sh"
 pwm_lin_script_path = "/home/alu/twerski/pwm_predict/run_pwm_one_file_lin.sh"
+parent_dir="/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/"
 
 def runPwmPredict(fasta_path):
     p1=multiprocessing.Process(target=runPwmPredictPol, args=[fasta_path])
@@ -74,29 +75,30 @@ def compare_pwm_result(origial_prot_fasta_path, new_prot_fasta_path):
     return {"pol_diff" : poll_diff, "lin_diff": lin_diff}
 
 if __name__ == '__main__':
-    genes_result = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_genes_result.csv")
-    # genes_all_changes = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_geneID_with_changes.csv")
-    # genes_all_changes['prot_seq'] = genes_result['prot_seq']
-    parent_dir = "/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/pwm_result/"
+    genes_result = pd.read_csv(parent_dir+"above_40_genes_result.csv")
+    pwm_dir = parent_dir+"pwm_result/"
     # will contain list for of lists for every gene - all_gene_diff[one_gene_diff[one_ver_diff[]]]
     pol_diff = []
     lin_diff = []
     diffs_counters_pol = []
     diffs_counters_lin = []
+    num_sequneces=[]
     for index, gene in genes_result.iterrows():
         gene_pol_diff=[]
         gene_lin_diff=[]
+        gene_seqs_count=0
         gene_count_pol = 0
         gene_count_lin = 0
         mut_list = gene['in_fingerprints_list']
         if pd.isna(mut_list):
             diffs_counters_pol.append(0)
             diffs_counters_lin.append(0)
+            num_sequneces.append(0)
             pol_diff.append([])
             lin_diff.append([])
             continue
         gene_dir = gene['gene_name']
-        gene_path = os.path.join(parent_dir, gene_dir)
+        gene_path = os.path.join(pwm_dir, gene_dir)
         # os.mkdir(gene_path)
         seq = gene['prot_seq']
     # write first fasta for origina seq
@@ -126,20 +128,24 @@ if __name__ == '__main__':
             # runPwmPredict(new_prot_fasta_path)
             # compare binding prediction of original and edited protein 
             ver_diff = compare_pwm_result(origial_prot_fasta_path, new_prot_fasta_path)
-            print(ver_diff)
+            # print(ver_diff)
             gene_count_pol += ver_diff["pol_diff"][1]
             gene_count_lin +=ver_diff["lin_diff"][1]
+            if ver_diff["pol_diff"][1] > 0 or ver_diff["lin_diff"][1] > 0:
+                gene_seqs_count+=1
             gene_pol_diff.append("; ".join([str(x) for x in ver_diff["pol_diff"]]))
             gene_lin_diff.append("; ".join([str(x) for x in ver_diff["lin_diff"]]))
         # add gene's diffs to all genes' diffs list
         diffs_counters_pol.append(gene_count_pol)
         diffs_counters_lin.append(gene_count_lin)
+        num_sequneces.append(gene_seqs_count)
         pol_diff.append(gene_pol_diff)
         lin_diff.append(gene_lin_diff)
     genes_result['pol_diff'] = pol_diff
     genes_result['pwm_diffs_count_Polynomial'] = diffs_counters_pol
     genes_result['lin_diff'] = lin_diff
     genes_result['pwm_diffs_count_linear'] = diffs_counters_lin
-    out_path="/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/finel_table_above_40_genes_pwm_result_FP_only.csv"
+    genes_result['num_sequneces']=num_sequneces
+    out_path=parent_dir +"finel_table_above_40_genes_pwm_result_FP_only.csv"
     genes_result.to_csv(path_or_buf=out_path, index=False)
     

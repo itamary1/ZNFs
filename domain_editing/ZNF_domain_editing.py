@@ -14,6 +14,8 @@ import time
 import re
 import numpy as np
 
+parent_dir="/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/"
+
 class EntrezClint:
 
     def __init__(self):
@@ -114,11 +116,11 @@ class ZnfDomainsHits:
 # todo check recurrent amino replacment?
 if __name__ == "__main__":
     # for writing results
-    with open("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/ZNF_binding_edit.txt", 'w') as outf:
+    with open(parent_dir+"/domain_editing/ZNF_binding_edit.txt", 'w') as outf:
         # list of gens with more the 10 editing sites
-        genes = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_geneID.csv")
+        genes = pd.read_csv(parent_dir+"/domain_editing/above_40_geneID.csv")
         # all editing sites
-        sites = pd.read_csv("/private8/Projects/itamar/ZNF/Sra_GSE73211_35_samples/REDI/curated/domain_editing/above_40_sites.csv")
+        sites = pd.read_csv(parent_dir+"/domain_editing/above_40_sites.csv")
         # remove stop loss/gain sites - - nothing to do with binding here
         sites = sites[~sites['amino_change'].str.contains("*",regex=False)]
         # create EntrezClint for getting proteins seq
